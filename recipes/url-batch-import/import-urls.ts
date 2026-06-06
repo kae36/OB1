@@ -156,11 +156,20 @@ interface UrlEntry {
 }
 
 function parseTxt(text: string): UrlEntry[] {
-  return text
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0 && !line.startsWith("#"))
-    .map((url) => ({ url }));
+  const entries: UrlEntry[] = [];
+  for (const raw of text.split("\n")) {
+    const line = raw.trim();
+    // Ignore blank lines and # comments silently.
+    if (line.length === 0 || line.startsWith("#")) continue;
+    // Non-URL lines (e.g. section markers like "START") are reported as
+    // skipped rather than counted as fetch failures.
+    if (!/^https?:\/\//i.test(line)) {
+      console.log(`   Skipped (not a URL): ${line}`);
+      continue;
+    }
+    entries.push({ url: line });
+  }
+  return entries;
 }
 
 function parseCsv(text: string): UrlEntry[] {
@@ -230,8 +239,13 @@ async function fetchUrl(url: string): Promise<string | null> {
     const res = await fetch(url, {
       signal: controller.signal,
       headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; OpenBrain-URLImporter/1.0)",
-        Accept: "text/html,application/xhtml+xml,*/*;q=0.8",
+        // Present as a real browser. Many news/lifestyle sites bot-block
+        // self-identifying scraper User-Agents with HTTP 403.
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
       },
     });
     clearTimeout(timer);
