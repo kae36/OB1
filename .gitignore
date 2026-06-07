@@ -28,5 +28,6 @@ docs/assets/agent-memory/promotional/generated-backgrounds/**/result.json
 docs/assets/agent-memory/screenshots/**/.chrome-*/
 integrations/openclaw-agent-memory/dist/
 .claude
+.codex
 .julie
 .julieignore
