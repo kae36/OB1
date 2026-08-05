@@ -23,7 +23,12 @@
 -- Helper view: flatten author_session_id / source out of metadata
 -- for the common "what did this session do" query. Safe to create
 -- more than once.
-CREATE OR REPLACE VIEW thought_provenance AS
+-- security_invoker = true so the view runs with the CALLER's privileges.
+-- Without it Postgres runs the view as its owner (`postgres`), which
+-- bypasses RLS on `public.thoughts` — Supabase's `security_definer_view`
+-- advisor flags exactly that. Requires Postgres 15+.
+CREATE OR REPLACE VIEW thought_provenance
+WITH (security_invoker = true) AS
 SELECT
   t.id,
   t.created_at,
@@ -46,6 +51,7 @@ RETURNS TABLE (
 )
 LANGUAGE sql
 STABLE
+SET search_path = public
 AS $$
   SELECT
     t.id,

@@ -8,9 +8,17 @@
 -- Safety: VIEWS ONLY. No destructive DDL, no data modification. Run in
 -- the Supabase SQL editor as the project owner. To remove a view later,
 -- use "DROP VIEW IF EXISTS <view_name> CASCADE;" from the SQL editor.
+--
+-- SECURITY: every view is created WITH (security_invoker = true) so it runs
+-- with the CALLER's privileges. Postgres defaults views to invoker = false,
+-- which runs them as the OWNER (`postgres`) — and that bypasses RLS on
+-- `public.thoughts`, letting any role with SELECT on the view read every
+-- row. Supabase's `security_definer_view` advisor flags that. Requires
+-- Postgres 15+ (all current Supabase projects).
 
 -- 1. Orphans by tag — thoughts with no topics, tags, or people in metadata
-CREATE OR REPLACE VIEW lint_orphans_by_tag AS
+CREATE OR REPLACE VIEW lint_orphans_by_tag
+WITH (security_invoker = true) AS
 SELECT
   id,
   created_at,
@@ -27,7 +35,8 @@ COMMENT ON VIEW lint_orphans_by_tag IS
   'Lint: thoughts with no topics/tags/people tags in metadata.';
 
 -- 2. Over-tagged thoughts — usually import noise
-CREATE OR REPLACE VIEW lint_over_tagged AS
+CREATE OR REPLACE VIEW lint_over_tagged
+WITH (security_invoker = true) AS
 SELECT
   id,
   created_at,
@@ -41,7 +50,8 @@ COMMENT ON VIEW lint_over_tagged IS
   'Lint: thoughts with more than 10 tags — commonly import noise.';
 
 -- 3. Empty-content thoughts — captured but never populated
-CREATE OR REPLACE VIEW lint_empty_content AS
+CREATE OR REPLACE VIEW lint_empty_content
+WITH (security_invoker = true) AS
 SELECT id, created_at, source_type, importance
 FROM public.thoughts
 WHERE content IS NULL
@@ -51,7 +61,8 @@ ORDER BY id DESC;
 COMMENT ON VIEW lint_empty_content IS 'Lint: thoughts with empty content.';
 
 -- 4. Very long content — usually unchunked dumps
-CREATE OR REPLACE VIEW lint_very_long AS
+CREATE OR REPLACE VIEW lint_very_long
+WITH (security_invoker = true) AS
 SELECT
   id,
   created_at,
@@ -65,7 +76,8 @@ COMMENT ON VIEW lint_very_long IS
   'Lint: thoughts over 20k characters — usually unchunked dumps.';
 
 -- 5. Low-signal noise — importance <= 2 and content under 40 chars
-CREATE OR REPLACE VIEW lint_low_signal AS
+CREATE OR REPLACE VIEW lint_low_signal
+WITH (security_invoker = true) AS
 SELECT id, created_at, importance, content
 FROM public.thoughts
 WHERE importance IS NOT NULL
@@ -90,7 +102,8 @@ BEGIN
       AND column_name  = 'content_fingerprint'
   ) THEN
     EXECUTE $v$
-      CREATE OR REPLACE VIEW lint_exact_duplicates AS
+      CREATE OR REPLACE VIEW lint_exact_duplicates
+      WITH (security_invoker = true) AS
       SELECT
         content_fingerprint,
         count(*)       AS copies,
@@ -121,7 +134,8 @@ BEGIN
       AND table_name   = 'thought_entities'
   ) THEN
     EXECUTE $v$
-      CREATE OR REPLACE VIEW lint_high_importance_isolated AS
+      CREATE OR REPLACE VIEW lint_high_importance_isolated
+      WITH (security_invoker = true) AS
       SELECT
         t.id,
         t.created_at,
