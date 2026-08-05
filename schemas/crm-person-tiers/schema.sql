@@ -78,6 +78,7 @@ CREATE INDEX IF NOT EXISTS idx_crm_person_mentions_thought
 CREATE OR REPLACE FUNCTION public.crm_persons_touch_updated_at()
 RETURNS trigger
 LANGUAGE plpgsql
+SET search_path = public
 AS $$
 BEGIN
   NEW.updated_at := now();
@@ -92,7 +93,26 @@ CREATE TRIGGER trg_crm_persons_updated_at
   EXECUTE FUNCTION public.crm_persons_touch_updated_at();
 
 -- ============================================================
--- 4. CRM_PERSON_TIERS RPC
+-- 4. ROW LEVEL SECURITY
+--    Both tables live in the `public` schema, which PostgREST exposes
+--    over the project API. Without RLS they fail Supabase's
+--    `rls_disabled_in_public` security advisor.
+--
+--    RLS is enabled with NO policies, which is deny-all for `anon` and
+--    `authenticated`. That is the correct default here: `service_role`
+--    bypasses RLS entirely, so the intended access path (a server-side
+--    service_role client calling `crm_person_tiers()`) is unaffected.
+--
+--    If you later want authenticated end-users to read these tables
+--    directly, add an explicit SELECT policy in a follow-up migration —
+--    do not disable RLS.
+-- ============================================================
+
+ALTER TABLE public.crm_persons         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.crm_person_mentions ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================
+-- 5. CRM_PERSON_TIERS RPC
 --    Returns one row per person with the stored `relationship_tier`,
 --    a computed `effective_tier` (applying the "connected" promotion
 --    rule), and the aggregated mention count. Ordered by tier
@@ -217,7 +237,7 @@ END;
 $$;
 
 -- ============================================================
--- 5. GRANTS
+-- 6. GRANTS
 --    Supabase no longer auto-grants CRUD permissions to service_role
 --    on new projects, so we grant them explicitly.
 --
@@ -225,20 +245,26 @@ $$;
 --      - RPC execution is granted to `authenticated` and `service_role`
 --        only. `anon` is deliberately excluded so an exposed anon key
 --        cannot dump every person's name, aliases, and metadata.
---      - The function is SECURITY INVOKER (see section 4), so callers
---        still see only rows their role is allowed to see. If you want
---        authenticated end-users to read these tables directly, enable
---        RLS on `crm_persons` and `crm_person_mentions` and add an
---        explicit SELECT policy; otherwise, call the RPC from a
---        server-side `service_role` client.
+--      - The function is SECURITY INVOKER (see section 5) and RLS is
+--        enabled on both tables (see section 4), so an `authenticated`
+--        caller gets zero rows until you add an explicit SELECT policy.
+--        For the standard setup, call the RPC from a server-side
+--        `service_role` client, which bypasses RLS.
 --      - To expose the RPC to anon clients on purpose (e.g. a public
 --        "who's in this brain" page), explicitly add
 --        `GRANT EXECUTE ... TO anon;` in a follow-up migration after
 --        you've added RLS policies you're comfortable with.
+--      - The REVOKE below is belt-and-braces: it strips any table-level
+--        privilege the API roles may have inherited from a project's
+--        default privileges, so the data stays unreachable even if RLS
+--        is ever turned back off.
 -- ============================================================
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.crm_persons         TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.crm_person_mentions TO service_role;
+
+REVOKE ALL ON TABLE public.crm_persons         FROM anon, authenticated;
+REVOKE ALL ON TABLE public.crm_person_mentions FROM anon, authenticated;
 
 GRANT EXECUTE ON FUNCTION public.crm_person_tiers(INTEGER, INTEGER, TEXT, INTEGER, INTERVAL)
   TO authenticated, service_role;

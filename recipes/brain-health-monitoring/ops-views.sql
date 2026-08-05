@@ -10,6 +10,16 @@
 -- Views 6-8 are wrapped in `to_regclass` guards, so running this file on a
 -- stock install (only enhanced-thoughts) creates views 1-5 cleanly and emits
 -- a NOTICE for each skipped optional view.
+--
+-- SECURITY: every view is created WITH (security_invoker = true). Postgres
+-- defaults views to invoker = false, which runs the view with its OWNER's
+-- privileges — and the owner (`postgres`) bypasses RLS. That would let any
+-- role holding SELECT on a view read all of `public.thoughts` regardless of
+-- the RLS policies on it, which is what Supabase's `security_definer_view`
+-- advisor flags. With invoker = true the view runs as the CALLER, so RLS and
+-- column privileges apply normally. `service_role` bypasses RLS anyway, so
+-- ops dashboards using the service key are unaffected.
+-- Requires Postgres 15+ (all current Supabase projects).
 
 -- ============================================================
 -- 1. SOURCE VOLUME (24h)
@@ -17,7 +27,8 @@
 --    Quick pulse check — if a source goes silent, investigate.
 -- ============================================================
 
-CREATE OR REPLACE VIEW public.ops_source_volume_24h AS
+CREATE OR REPLACE VIEW public.ops_source_volume_24h
+WITH (security_invoker = true) AS
 SELECT
   coalesce(source_type, 'unknown') AS source,
   count(*)::bigint AS thoughts_24h
@@ -32,7 +43,8 @@ ORDER BY thoughts_24h DESC;
 --    Useful for spot-checking what's flowing in.
 -- ============================================================
 
-CREATE OR REPLACE VIEW public.ops_recent_thoughts AS
+CREATE OR REPLACE VIEW public.ops_recent_thoughts
+WITH (security_invoker = true) AS
 SELECT
   id,
   created_at,
@@ -52,7 +64,8 @@ ORDER BY created_at DESC;
 --    the enrichment pipeline may be stalled or misconfigured.
 -- ============================================================
 
-CREATE OR REPLACE VIEW public.ops_enrichment_gaps AS
+CREATE OR REPLACE VIEW public.ops_enrichment_gaps
+WITH (security_invoker = true) AS
 SELECT
   id,
   created_at,
@@ -70,7 +83,8 @@ ORDER BY created_at DESC;
 --    Helps spot classification drift or misconfigured sources.
 -- ============================================================
 
-CREATE OR REPLACE VIEW public.ops_type_distribution AS
+CREATE OR REPLACE VIEW public.ops_type_distribution
+WITH (security_invoker = true) AS
 SELECT
   coalesce(type, 'unclassified') AS type,
   count(*)::bigint AS total,
@@ -86,7 +100,8 @@ ORDER BY total DESC;
 --    A sudden spike in "restricted" warrants investigation.
 -- ============================================================
 
-CREATE OR REPLACE VIEW public.ops_sensitivity_distribution AS
+CREATE OR REPLACE VIEW public.ops_sensitivity_distribution
+WITH (security_invoker = true) AS
 SELECT
   coalesce(sensitivity_tier, 'standard') AS tier,
   count(*)::bigint AS total
@@ -105,7 +120,8 @@ DO $$
 BEGIN
   IF to_regclass('public.ingestion_jobs') IS NOT NULL THEN
     EXECUTE $v$
-      CREATE OR REPLACE VIEW public.ops_ingestion_summary AS
+      CREATE OR REPLACE VIEW public.ops_ingestion_summary
+      WITH (security_invoker = true) AS
       SELECT
         status,
         count(*)::bigint AS job_count,
@@ -133,7 +149,8 @@ DO $$
 BEGIN
   IF to_regclass('public.entity_extraction_queue') IS NOT NULL THEN
     EXECUTE $v$
-      CREATE OR REPLACE VIEW public.ops_stalled_entity_queue AS
+      CREATE OR REPLACE VIEW public.ops_stalled_entity_queue
+      WITH (security_invoker = true) AS
       SELECT
         thought_id,
         status,
@@ -163,7 +180,8 @@ DO $$
 BEGIN
   IF to_regclass('public.entity_extraction_queue') IS NOT NULL THEN
     EXECUTE $v$
-      CREATE OR REPLACE VIEW public.ops_graph_coverage AS
+      CREATE OR REPLACE VIEW public.ops_graph_coverage
+      WITH (security_invoker = true) AS
       SELECT
         count(*) FILTER (WHERE status = 'complete')::bigint AS extracted,
         count(*) FILTER (WHERE status = 'pending')::bigint AS pending,
