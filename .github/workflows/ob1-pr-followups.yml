@@ -4,6 +4,7 @@ on:
   workflow_run:
     workflows:
       - "OB1 PR Gate"
+      - ".github/workflows/ob1-gate-v2.yml"
       - ".github/workflows/ob1-gate.yml"
     types: [completed]
 
@@ -22,7 +23,7 @@ jobs:
     steps:
       - name: Explain skipped follow-up
         run: |
-          echo "OB1 PR Follow-Ups only acts on pull_request gate runs."
+          echo "OB1 PR Follow-Ups only acts on pull_request or pull_request_target gate runs."
           echo "Received upstream event: ${{ github.event.workflow_run.event }}"
 
   followups:
