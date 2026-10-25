@@ -384,7 +384,15 @@ BEGIN
       THEN LEAST(100, GREATEST(0, (v_metadata->>'quality_score')::numeric))
     ELSE 70
   END;
-  v_sensitivity_tier := COALESCE(NULLIF(v_metadata->>'sensitivity_tier', ''), 'standard');
+  -- Top-level payload first (enhanced-mcp sends it there), then metadata.
+  v_sensitivity_tier := lower(COALESCE(
+    NULLIF(p_payload->>'sensitivity_tier', ''),
+    NULLIF(v_metadata->>'sensitivity_tier', ''),
+    'standard'
+  ));
+  IF v_sensitivity_tier NOT IN ('standard', 'personal', 'restricted') THEN
+    v_sensitivity_tier := 'standard';
+  END IF;
   v_status := COALESCE(NULLIF(p_payload->>'status', ''), NULLIF(v_metadata->>'status', ''));
   IF v_status IS NULL AND v_type IN ('task', 'idea') THEN
     v_status := 'new';
@@ -426,7 +434,13 @@ BEGIN
       source_type = COALESCE(EXCLUDED.source_type, public.thoughts.source_type),
       importance = COALESCE(EXCLUDED.importance, public.thoughts.importance),
       quality_score = COALESCE(EXCLUDED.quality_score, public.thoughts.quality_score),
-      sensitivity_tier = COALESCE(EXCLUDED.sensitivity_tier, public.thoughts.sensitivity_tier),
+      -- Escalation only: a re-capture may raise the tier but never lower it.
+      sensitivity_tier = CASE
+        WHEN COALESCE(array_position(ARRAY['standard', 'personal', 'restricted'], EXCLUDED.sensitivity_tier), 0)
+           > COALESCE(array_position(ARRAY['standard', 'personal', 'restricted'], public.thoughts.sensitivity_tier), 0)
+          THEN EXCLUDED.sensitivity_tier
+        ELSE public.thoughts.sensitivity_tier
+      END,
       status = COALESCE(EXCLUDED.status, public.thoughts.status),
       status_updated_at = CASE
         WHEN EXCLUDED.status IS DISTINCT FROM public.thoughts.status THEN now()
@@ -437,7 +451,7 @@ BEGIN
   v_result := jsonb_build_object('id', v_id, 'fingerprint', v_fingerprint);
   RETURN v_result;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public, pg_temp;
 
 GRANT EXECUTE ON FUNCTION public.upsert_thought(TEXT, JSONB) TO service_role;
 
