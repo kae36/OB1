@@ -23,7 +23,7 @@ The original `server/` connector remains untouched and safe to leave connected: 
 
 ## Security
 
-This server authenticates every request against `MCP_ACCESS_KEY` using a constant-time comparison, and accepts the key only through the `x-brain-key` header or `Authorization: Bearer …` — never a URL query string. It runs under the Supabase `service_role`, which bypasses RLS by design; that is intentional for MCP use, but it does mean this Edge Function is the sensitivity-filter boundary. All tools that expose thought content skip `sensitivity_tier = 'restricted'` rows, and `brain_capture_thought` rejects restricted content outright (same for `update_thought`).
+This server authenticates every request against `MCP_ACCESS_KEY` using a constant-time comparison, and accepts the key only through the `x-brain-key` header or `Authorization: Bearer …` — never a URL query string. It runs under the Supabase `service_role`, which bypasses RLS by design; that is intentional for MCP use, but it does mean this Edge Function is the sensitivity-filter boundary. All tools that expose thought content skip `sensitivity_tier = 'restricted'` rows, and `brain_capture_thought` rejects restricted content outright.
 
 **Companion schema exposure — please read before deploying publicly.** The enhanced-thoughts schema this server depends on is intended to install with `service_role`-only grants on the sensitive RPCs (`search_thoughts_text`, `brain_stats_aggregate`, `get_thought_connections`) — no `anon` GRANTs by default. That means those RPCs are reachable only via authenticated server-side code, including this MCP server. If your deployment's copy of that schema also grants `anon`, or if you later add public grants for a dashboard, be aware: `SECURITY DEFINER` + `anon` grant is an RLS bypass because the function body runs with the function owner's privileges. Combined with a publicly-reachable enhanced-mcp deployment, this would let anyone with your Supabase project URL + anon key read thought content directly via those RPCs — routing around this server's sensitivity filtering. Audit the grants on your companion schemas before exposing this MCP outside a trusted network.
 
@@ -125,7 +125,7 @@ If you also have the original `server/` connector active, you will see both tool
 | 1 | `brain_search_thoughts` | Semantic vector or full-text search with date and metadata filters | Enhanced Thoughts |
 | 2 | `brain_list_thoughts` | Paginated browsing with type, source, date filters and sorting | Enhanced Thoughts |
 | 3 | `get_thought` | Fetch a single thought by ID with full metadata | Enhanced Thoughts |
-| 4 | `update_thought` | Update content with automatic re-embedding and re-classification | Enhanced Thoughts |
+| 4 | ~~`update_thought`~~ | Removed (numeric id vs UUID table); use [`update-thought-mcp`](../update-thought-mcp/) | — |
 | 5 | `brain_capture_thought` | Capture with dedup, sensitivity detection, and LLM classification | Enhanced Thoughts |
 | 6 | `brain_thought_stats` | Type and topic statistics via server-side aggregation | Enhanced Thoughts |
 | 7 | `search_thoughts_text` | Direct full-text search (faster for exact phrase matching) | Enhanced Thoughts |
