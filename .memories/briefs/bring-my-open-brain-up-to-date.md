@@ -60,9 +60,10 @@ Last synced upstream HEAD: `238df6c` (2026-09-10). On the next sync, expect conf
 
 ## Open items
 1. Next capability from the queue (rest-api / smart-ingest blocked on UUID fixes).
-2. Third upstream sync when upstream HEAD moves past `238df6c`.
-3. `contrib/kae36/url-batch-import` still has 6 unmerged commits (unrelated URL-import recipe).
+2. Third upstream sync when upstream HEAD moves past `238df6c` (re-checked 2026-10-25: unchanged).
 
 ## Housekeeping
 - Machine-local ignores live in `.git/info/exclude`; `.gitignore` matches upstream.
+- This clone has no `upstream` remote; fetch by URL: `git fetch https://github.com/NateBJones-Projects/OB1.git main` (result in `FETCH_HEAD`).
+- `recipes/url-batch-import/` lives on `kae36/personal`. Its branch `contrib/kae36/url-batch-import` was deleted 2026-10-25 (local + origin, tip `023e0eb`); it held only merges of main. Upstream PR #339 was closed unmerged 2026-07-28 (reason not stated); a new upstream PR would start from the recipe files on a fresh branch.
 - The 721 thoughts with a null `type` column already carry types in stock metadata; `backfill_thought_types()` is moot unless something needs the typed column.
