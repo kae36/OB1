@@ -374,15 +374,16 @@ BEGIN
   v_metadata := COALESCE(p_payload->'metadata', '{}'::jsonb);
   v_type := COALESCE(NULLIF(v_metadata->>'type', ''), 'observation');
   v_source_type := COALESCE(NULLIF(v_metadata->>'source_type', ''), NULLIF(v_metadata->>'source', ''), 'unknown');
+  -- Top-level payload first, then metadata. NULL when not supplied, so a
+  -- re-capture without a value keeps the stored one (column defaults apply on insert).
+  -- importance is 0..6 (column default 3); quality_score is 0..100 (default 50).
   v_importance := CASE
-    WHEN COALESCE(v_metadata->>'importance', '') ~ '^[0-9]+(\.[0-9]+)?$'
-      THEN LEAST(100, GREATEST(0, ROUND((v_metadata->>'importance')::numeric)))::smallint
-    ELSE 50
+    WHEN COALESCE(p_payload->>'importance', v_metadata->>'importance', '') ~ '^[0-9]+(\.[0-9]+)?$'
+      THEN LEAST(6, GREATEST(0, ROUND(COALESCE(p_payload->>'importance', v_metadata->>'importance')::numeric)))::smallint
   END;
   v_quality_score := CASE
-    WHEN COALESCE(v_metadata->>'quality_score', '') ~ '^[0-9]+(\.[0-9]+)?$'
-      THEN LEAST(100, GREATEST(0, (v_metadata->>'quality_score')::numeric))
-    ELSE 70
+    WHEN COALESCE(p_payload->>'quality_score', v_metadata->>'quality_score', '') ~ '^[0-9]+(\.[0-9]+)?$'
+      THEN LEAST(100, GREATEST(0, COALESCE(p_payload->>'quality_score', v_metadata->>'quality_score')::numeric))
   END;
   -- Top-level payload first (enhanced-mcp sends it there), then metadata.
   v_sensitivity_tier := lower(COALESCE(
@@ -421,8 +422,8 @@ BEGIN
     v_metadata,
     v_type,
     v_source_type,
-    v_importance,
-    v_quality_score,
+    COALESCE(v_importance, 3),
+    COALESCE(v_quality_score, 50),
     v_sensitivity_tier,
     v_status,
     CASE WHEN v_status IS NULL THEN NULL ELSE now() END
@@ -432,8 +433,9 @@ BEGIN
       metadata = public.thoughts.metadata || COALESCE(EXCLUDED.metadata, '{}'::jsonb),
       type = COALESCE(EXCLUDED.type, public.thoughts.type),
       source_type = COALESCE(EXCLUDED.source_type, public.thoughts.source_type),
-      importance = COALESCE(EXCLUDED.importance, public.thoughts.importance),
-      quality_score = COALESCE(EXCLUDED.quality_score, public.thoughts.quality_score),
+      -- Variables, not EXCLUDED: EXCLUDED already holds the insert defaults.
+      importance = COALESCE(v_importance, public.thoughts.importance),
+      quality_score = COALESCE(v_quality_score, public.thoughts.quality_score),
       -- Escalation only: a re-capture may raise the tier but never lower it.
       sensitivity_tier = CASE
         WHEN COALESCE(array_position(ARRAY['standard', 'personal', 'restricted'], EXCLUDED.sensitivity_tier), 0)
