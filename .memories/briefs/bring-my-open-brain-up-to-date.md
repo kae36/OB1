@@ -37,7 +37,7 @@ Done and verified live 2026-10-25 (all pushed to `origin/kae36/personal`, HEAD `
 - Deployed functions: open-brain-mcp (stock), enhanced-mcp, delete-thought-mcp, household-knowledge, home-maintenance, family-calendar, meal-planning. NOT deployed: rest-api, open-brain-rest, smart-ingest.
 
 ### Known gaps
-- Thoughts stored `standard` before the tier/regex fixes were not re-scanned for personal content.
+- Re-scanned 2026-10-25: 49 of 814 `standard` rows matched the patterns, but nearly all were false positives (news imports; digit runs in URLs hitting `ssn_pattern`/`credit_card`). User chose to raise only 3 genuinely personal notes. `personal` is only a label today (nothing filters it). Never bulk-apply pattern matches.
 - The stock connector re-classifies `type` on duplicate captures.
 - `rest-api` / `smart-ingest` still have the UUID/capture problems (upstream #379, #504/#429/#367/#473). `open-brain-rest` uses a 0..100 importance scale (would be clamped to 6).
 - `upsert_thought` and several other SECURITY INVOKER functions are still anon-executable (low risk while anon has no table privileges on `thoughts`).
@@ -59,10 +59,9 @@ Last synced upstream HEAD: `238df6c` (2026-09-10). On the next sync, expect conf
 - Landmine catalog `.planning/supabase-security/landmine-catalog-2026-09-13.md` (with 2026-09-19 addendum). Read it before deploying any schema.
 
 ## Open items
-1. Optional: re-scan existing `standard` thoughts with the current sensitivity patterns and raise matches to `personal`.
-2. Next capability from the queue (rest-api / smart-ingest blocked on UUID fixes).
-3. Third upstream sync when upstream HEAD moves past `238df6c`.
-4. `contrib/kae36/url-batch-import` still has 6 unmerged commits (unrelated URL-import recipe).
+1. Next capability from the queue (rest-api / smart-ingest blocked on UUID fixes).
+2. Third upstream sync when upstream HEAD moves past `238df6c`.
+3. `contrib/kae36/url-batch-import` still has 6 unmerged commits (unrelated URL-import recipe).
 
 ## Housekeeping
 - Machine-local ignores live in `.git/info/exclude`; `.gitignore` matches upstream.
