@@ -152,7 +152,8 @@ export const PERSONAL_PATTERNS: [RegExp, string][] = [
   [/\b(glucose|a1c|cholesterol|blood pressure|bp|hrv|bmi)\b.*\b\d+/i, "health_measurement"],
   [/\b(diagnosed|diagnosis|prediabetic|diabetic|arrhythmia|ablation)\b/i, "medical_condition"],
   [/\b(salary|income|net worth|401k|ira|portfolio)\b.*\b\$?\d/i, "financial_detail"],
-  [/\b\$\d{3,}[,\d]*\b/i, "financial_amount"],
+  // No leading \b: "$" is not a word char, so "\b\$" never matched " $1500".
+  [/\$\d(?:,?\d){2,}/, "financial_amount"],
 ];
 
 // ── Type definitions ────────────────────────────────────────────────────────
