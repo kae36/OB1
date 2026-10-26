@@ -1042,12 +1042,38 @@ server.registerTool(
         q = q.eq("entity_type", entityType);
       }
 
-      const { data: entities, error } = await q;
+      const { data: nameMatches, error } = await q;
       if (error) {
         throw new Error(`graph_search failed: ${error.message}`);
       }
 
-      if (!entities || entities.length === 0) {
+      // Aliases hold merged-away names, normalized like the extraction worker
+      // does (exact match only), e.g. "IPMI" finds the BMC entity.
+      let aq = supabase
+        .from("entities")
+        .select(
+          "id, entity_type, canonical_name, aliases, metadata, first_seen_at, last_seen_at",
+        )
+        .contains(
+          "aliases",
+          JSON.stringify([query.toLowerCase().replace(/\s+/g, " ")]),
+        )
+        .limit(limit);
+      if (entityType) {
+        aq = aq.eq("entity_type", entityType);
+      }
+      const { data: aliasMatches, error: aliasError } = await aq;
+      if (aliasError) {
+        console.error("graph_search alias lookup failed", aliasError);
+      }
+
+      const seen = new Set((nameMatches ?? []).map((e) => e.id));
+      const entities = [
+        ...(aliasMatches ?? []).filter((e) => !seen.has(e.id)),
+        ...(nameMatches ?? []),
+      ].slice(0, limit);
+
+      if (entities.length === 0) {
         return toolSuccess("No entities found.", {
           results: [],
           total: 0,
