@@ -36,6 +36,11 @@ import { StreamableHTTPTransport } from "@hono/mcp";
 import { Hono } from "hono";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
+// Sibling enhanced-mcp in both integrations/ and supabase/functions/; config.ts has no imports.
+import {
+  PERSONAL_PATTERNS,
+  RESTRICTED_PATTERNS,
+} from "../enhanced-mcp/_shared/config.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -63,6 +68,20 @@ async function getEmbedding(text: string): Promise<number[]> {
   }
   const d = await r.json();
   return d.data[0].embedding;
+}
+
+// Same normalization as upsert_thought: lower(trim(regexp_replace(c, '\s+', ' ', 'g'))).
+// Postgres \s is [ \t\n\r\f\v]; JS \s also matches Unicode spaces, so spell it out.
+async function contentFingerprint(text: string): Promise<string> {
+  const normalized = text.replace(/[ \t\n\r\f\v]+/g, " ").replace(/^ +| +$/g, "").toLowerCase();
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(normalized));
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function detectTier(text: string): "restricted" | "personal" | "standard" {
+  if (RESTRICTED_PATTERNS.some(([re]) => re.test(text))) return "restricted";
+  if (PERSONAL_PATTERNS.some(([re]) => re.test(text))) return "personal";
+  return "standard";
 }
 
 // --- MCP Server Setup ---
@@ -107,7 +126,7 @@ server.registerTool(
       // metadata for the shallow-merge.
       const { data: existing, error: fetchError } = await supabase
         .from("thoughts")
-        .select("id, content, metadata, created_at, updated_at")
+        .select("id, content, metadata, sensitivity_tier, created_at, updated_at")
         .eq("id", id)
         .single();
 
@@ -152,6 +171,25 @@ server.registerTool(
       const updates: Record<string, unknown> = {};
 
       if (content !== undefined) {
+        // Same gate as enhanced-mcp capture: restricted text never goes to the cloud DB.
+        const tier = detectTier(content.replace(/\s+/g, " ").trim());
+        if (tier === "restricted") {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text:
+                  "New content matches restricted patterns (SSN, credit card, API key, password, etc.) and cannot be stored. Thought unchanged.",
+              },
+            ],
+            isError: true,
+          };
+        }
+        // Escalation only: never lower a stored tier.
+        if (tier === "personal" && (existing.sensitivity_tier ?? "standard") === "standard") {
+          updates.sensitivity_tier = "personal";
+        }
+        updates.content_fingerprint = await contentFingerprint(content);
         if (!OPENROUTER_API_KEY) {
           return {
             content: [
@@ -200,7 +238,9 @@ server.registerTool(
           content: [
             {
               type: "text" as const,
-              text: `update_thought error: ${error.message}`,
+              text: error.code === "23505"
+                ? "update_thought error: another thought already has this exact content (same fingerprint). Thought unchanged."
+                : `update_thought error: ${error.message}`,
             },
           ],
           isError: true,
