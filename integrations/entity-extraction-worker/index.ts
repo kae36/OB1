@@ -408,6 +408,23 @@ function normalizeName(name: string): string {
 
 async function upsertEntity(name: string, entityType: string): Promise<number | null> {
   const normalized = normalizeName(name);
+
+  // A manual merge records the loser's normalized name in the survivor's aliases
+  // (any type); reuse the survivor so the merged duplicate isn't recreated.
+  const { data: aliased, error: aliasError } = await supabase
+    .from("entities")
+    .select("id")
+    .contains("aliases", JSON.stringify([normalized]))
+    .limit(1)
+    .maybeSingle();
+  if (aliasError) {
+    console.error(`Alias lookup failed for "${name}":`, aliasError);
+  } else if (aliased) {
+    const now = new Date().toISOString();
+    await supabase.from("entities").update({ last_seen_at: now, updated_at: now }).eq("id", aliased.id);
+    return aliased.id;
+  }
+
   const { data, error } = await supabase
     .from("entities")
     .upsert(
