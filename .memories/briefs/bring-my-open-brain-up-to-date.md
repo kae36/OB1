@@ -1,9 +1,9 @@
 ---
 id: bring-my-open-brain-up-to-date
 title: Bring My Open Brain Up To Date
-status: active
+status: completed
 created: 2026-08-01T06:28:46.561Z
-updated: 2026-10-26T05:10:00.000Z
+updated: 2026-10-29T03:00:10.675Z
 tags:
   - open-brain
   - upstream-adoption
@@ -17,6 +17,9 @@ tags:
 
 ## Goal
 Adopt useful new upstream OB1 capabilities into my personal Open Brain (Supabase project `dpcybjkruqrbdlyvfeqb`, "kae36's Org"). Strategy since 2026-09-13: fully sync this fork with upstream first, reconcile security across everything that syncs in, then pick new capabilities one at a time.
+
+## Closed 2026-10-28 (user): adoption done; remaining capabilities parked
+Every remaining capability was blocked upstream or not needed now (see **Parked**). Upstream re-checked 2026-10-28: HEAD still `238df6c`; #490, #506, #379, #504, #429, #367, #473 all still open. Ongoing upkeep needs no brief: drain the entity queue by hand after imports, and re-check upstream now and then with the commands below. Start a new brief only for a new goal.
 
 ## Status as of 2026-10-26: capture, edit, delete working; entity graph built
 
@@ -72,7 +75,15 @@ Last synced upstream HEAD: `238df6c` (2026-09-10). On the next sync, expect conf
 - Any `search_path` pin on a function using extension types must include `extensions`.
 - Landmine catalog `.planning/supabase-security/landmine-catalog-2026-09-13.md` (with 2026-09-19 addendum). Read it before deploying any schema.
 
-## Open items
+## Parked (what would unpark each)
+- **rest-api, smart-ingest, chrome-capture-extension:** upstream merges a fix for the UUID/bigint bug (#379 via #504/#429/#367/#473), or we decide to patch locally. The Chrome extension also needs `open-brain-rest` deployed with its importance scale fixed (0..100 vs 0..6).
+- **hermes-agent-memory:** you start using Hermes.
+- **gmail-smart-pull:** a Gmail importer gets set up.
+- **consolidation-workers:** thoughts start carrying `metadata.confidence` or person_note/decision/journal types.
+- **auto-capture-claude-code:** you want sessions captured automatically (adapt per item 3 below).
+- **Scheduled entity-queue draining:** manual drains start getting missed.
+
+## Open items (as of closing)
 1. Entity queue draining: **decided 2026-10-28 (user): manual for now.** After imports or capture batches, POST to `entity-extraction-worker` with `x-brain-key` (`?limit=10`). Revisit pg_cron + pg_net only if manual drains get missed (needs a stored key + security review; any new table from 2026-10-30 needs explicit GRANT + RLS). Optional: auto-reclaim rows stuck in `processing` (one happened in the backfill).
 2. Next capability. Remaining queue: chrome-capture-extension (needs open-brain-rest), hermes-agent-memory (no Hermes), gmail-smart-pull (no importer), consolidation-workers (no-op on this data: 0 rows have `metadata.confidence`; no person_note/decision/journal types). rest-api / smart-ingest are blocked on UUID fixes.
 3. **auto-capture-claude-code — paused, user deferred.** As shipped it posts to undeployed `open-brain-rest/ingest` (whole transcript as one thought, drops source_type/import_key, importance 50); README registers it on `Stop` though the script expects `SessionEnd`; no sensitivity filtering. Recommended if adopted: base auto-capture skill + adapted SessionEnd hook posting a trimmed transcript to enhanced-mcp `brain_capture_thought`.
