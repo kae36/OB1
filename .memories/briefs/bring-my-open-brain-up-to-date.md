@@ -73,7 +73,7 @@ Last synced upstream HEAD: `238df6c` (2026-09-10). On the next sync, expect conf
 - Landmine catalog `.planning/supabase-security/landmine-catalog-2026-09-13.md` (with 2026-09-19 addendum). Read it before deploying any schema.
 
 ## Open items
-1. Entity queue draining: manual vs pg_cron + pg_net schedule (needs a stored key; security review). Optional: auto-reclaim rows stuck in `processing` (one happened in the backfill).
+1. Entity queue draining: **decided 2026-10-28 (user): manual for now.** After imports or capture batches, POST to `entity-extraction-worker` with `x-brain-key` (`?limit=10`). Revisit pg_cron + pg_net only if manual drains get missed (needs a stored key + security review; any new table from 2026-10-30 needs explicit GRANT + RLS). Optional: auto-reclaim rows stuck in `processing` (one happened in the backfill).
 2. Next capability. Remaining queue: chrome-capture-extension (needs open-brain-rest), hermes-agent-memory (no Hermes), gmail-smart-pull (no importer), consolidation-workers (no-op on this data: 0 rows have `metadata.confidence`; no person_note/decision/journal types). rest-api / smart-ingest are blocked on UUID fixes.
 3. **auto-capture-claude-code — paused, user deferred.** As shipped it posts to undeployed `open-brain-rest/ingest` (whole transcript as one thought, drops source_type/import_key, importance 50); README registers it on `Stop` though the script expects `SessionEnd`; no sensitivity filtering. Recommended if adopted: base auto-capture skill + adapted SessionEnd hook posting a trimmed transcript to enhanced-mcp `brain_capture_thought`.
 4. Third upstream sync when upstream HEAD moves past `238df6c` (re-checked 2026-10-25: unchanged).
